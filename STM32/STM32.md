@@ -163,21 +163,21 @@ int main(void){
 	while(1)
 	{
         // 通过内存地址的方式修改电平，0x0001是十六进制码，前面加~是因为低电平点亮，所以要取反
-        GPIO_Write(GPIOA, ~0x0001);	//0000 0000 0000 0001	对应的引脚地址
+        GPIO_Write(GPIOA, ~0x0001);		//0000 0000 0000 0001	1	对应的引脚地址
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x0002);	//0000 0000 0000 0010
+        GPIO_Write(GPIOA, ~0x0002);		//0000 0000 0000 0010	2
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x0004);	//0000 0000 0000 0100
+        GPIO_Write(GPIOA, ~0x0004);		//0000 0000 0000 0100	4
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x0008);	//0000 0000 0000 1000
+        GPIO_Write(GPIOA, ~0x0008);		//0000 0000 0000 1000	8
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x00010);	//0000 0000 0001 0000
+        GPIO_Write(GPIOA, ~0x00010);	//0000 0000 0001 0000	16
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x00020);	//0000 0000 0010 0000
+        GPIO_Write(GPIOA, ~0x00020);	//0000 0000 0010 0000	32
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x00040);	//0000 0000 0100 0000
+        GPIO_Write(GPIOA, ~0x00040);	//0000 0000 0100 0000	64
         Delay_ms(100);
-        GPIO_Write(GPIOA, ~0x00080);	//0000 0000 1000 0000
+        GPIO_Write(GPIOA, ~0x00080);	//0000 0000 1000 0000	128
         Delay_ms(100);
 	}
 }
@@ -190,6 +190,50 @@ int main(void){
 ```c
 GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2;
 ```
+
+*使用 for() 优化后*
+
+**代码**
+
+```c
+#include "stm32f10x.h"                  // Device header
+#include "Delay.h"
+#include <math.h>
+
+int main(void){
+	//使能外设时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	
+	//配置GPIO初始化所需要用的一些信息
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;	//工作模式为推挽输出，该模式下高低电平均有驱动能力
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_All;			//初始化0~15个端口
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;	//输出速度为50MHz
+	
+	//初始化GPIO
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	
+    //用uint16_t类型数组存8个引脚地址
+	uint16_t Pins[8];	//uint16_t是unsigned short int类型的别名，此处可以直接理解成16进制类型
+	for(int i=0; i<8; i++){
+		Pins[i]= (uint16_t)(pow(2,i));	//通过强转类型将10进制转为16进制存到数组中
+	}
+	
+	int i;
+	while(1){
+		i = 0;
+		while(i<8){
+			GPIO_Write(GPIOA, Pins[i]);
+			i++;
+			Delay_ms(100);
+		}
+	}
+}
+//最后一行要留多加一个空行
+
+```
+
+
 
 ----
 
