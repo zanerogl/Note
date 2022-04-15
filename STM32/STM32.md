@@ -35,7 +35,59 @@
 
 ### 外设资源
 
-- ![Peripherals](./STM32.assets/Peripherals.png)
+![Peripherals](./STM32.assets/Peripherals.png)
+
+- **NVIC** 
+
+  > 嵌套向量中断控制器，内核里用于管理中断的设备
+  >
+  > 比如：中断优先级
+
+- **SysTick**
+
+  >系统滴答定时器，主要用于给操作系统提供定时服务
+
+- **RCC**
+
+  > 配置系统时钟，使能各模块的时钟
+  >
+  > 与51不同，STM32为了降低功耗时钟都是默认disable的
+  >
+  > 时钟的功能就好像是一个小开关，你要用什么寄存器就先对应的打开开关，即：使能对应的时钟。
+
+- **GPIO**
+
+  >通用型之输入输出的简称
+
+- **AFIO**
+
+  > AFIO就是IO复用，就是一个IO口用在多个外设上
+  >
+  > 这样做的目的是节省IO资源，提高IO利用率
+
+- **EXTI**
+
+  > 外部中断/事件控制器管理了控制器的 20个中断/事件线
+  >
+  > 每个中断/事件线都对应有一个边沿检测器，可以实现输入信号的上升沿检测和下降沿的检测。 
+  >
+  > EXTI 可以实现对每个中断/事件线进行单独配置，可以单独配置为中断或者事件，以及触发事件的属性。
+  >
+  > 当引脚有电平变化时，触发中断，让CPU来处理任务
+  >
+  > **中断响应/事件响应：**前者触发中断，后者触发外设（即外设之间的互联）
+
+- **TIM**
+
+  > 高级定时器
+  >
+  > 通用定时器
+  >
+  > 基本定时器
+
+- **ADC**
+
+  > 通常是指一个将模拟信号转变为数字信号的电子元件
 
 ----
 
@@ -47,7 +99,7 @@
 
 ## GPIO
 
-- ![GPIO basic structure](./STM32.assets/GPIO basic structure.png)
+![GPIO basic structure](./STM32.assets/GPIO basic structure.png)
 
 - **GPIO操作步骤**               **重要   !!!!!**
 
@@ -56,6 +108,23 @@
   > 3. 使用输出或者输入控制GPIO口
 
 ----
+
+### 工作模式
+
+```c
+typedef enum
+{ GPIO_Mode_AIN = 0x0,			//模拟输入
+  GPIO_Mode_IN_FLOATING = 0x04,	 //浮空输入
+  GPIO_Mode_IPD = 0x28,			//下拉输入
+  GPIO_Mode_IPU = 0x48,			//上拉输入
+  GPIO_Mode_Out_OD = 0x14,		//开漏输出
+  GPIO_Mode_Out_PP = 0x10,		//推挽输出，该模式下高低电平均有驱动能力
+  GPIO_Mode_AF_OD = 0x1C,		//复用开漏
+  GPIO_Mode_AF_PP = 0x18		//复用推挽
+}GPIOMode_TypeDef;
+```
+
+-----
 
 ### LED灯闪烁
 
@@ -79,21 +148,6 @@ void RCC_APB2PeriphClockCmd（uint32_t RCC_APB2Periph, FunctionalState NewState�
 
 1. 选外设端口。例如，用PA0口，则选用RCC_APB2Periph_GPIOA；用PB0口，则选用RCC_APB2Periph_GPIOB；
 2. 选enable or disable。
-
-**GPIO的8种工作模式**
-
-```c
-typedef enum
-{ GPIO_Mode_AIN = 0x0,			//模拟输入
-  GPIO_Mode_IN_FLOATING = 0x04,	 //浮空输入
-  GPIO_Mode_IPD = 0x28,			//下拉输入
-  GPIO_Mode_IPU = 0x48,			//上拉输入
-  GPIO_Mode_Out_OD = 0x14,		//开漏输出
-  GPIO_Mode_Out_PP = 0x10,		//推挽输出，该模式下高低电平均有驱动能力
-  GPIO_Mode_AF_OD = 0x1C,		//复用开漏
-  GPIO_Mode_AF_PP = 0x18		//复用推挽
-}GPIOMode_TypeDef;
-```
 
 **代码**
 
@@ -504,8 +558,6 @@ int main(void)
 
 
 
-
-
 ### GPIO库函数
 
 - **GPIO_Init()**
@@ -525,7 +577,260 @@ int main(void)
   >
   > 初始化GPIO
   
-  
+
+----
+
+## 外部中断
+
+### 中断系统
+
+- 中断：在主程序运行过程中，出现了特定的中断触发条件（中断源），使得CPU暂停当前正在运行的程序，转而去处理中断程序，处理完成后又返回原来被暂停的位置继续运行
+- 中断优先级：当有多个中断源同时申请中断时，CPU会根据中断源的轻重缓急进行裁决，优先响应更加紧急的中断源
+- 中断嵌套：当一个中断程序正在运行时，又有新的更高优先级的中断源申请中断，CPU再次暂停当前中断程序，转而去处理新的中断程序，处理完成后依次进行返回
+- 作用：提升CPU的效率，避免CPU一直在查询某个程序是否执行，只有当该程序被执行的时候才去执行她（见执行流程图）
+
+### 中断执行流程
+
+![Interrupt_execution_process](./STM32.assets/Interrupt_execution_process.png)
+
+----
+
+### NVIC
+
+![NVIC](./STM32.assets/NVIC.png)
+
+-----
+
+### 中断优先级
+
+![Interrupt_priority](./STM32.assets/Interrupt_priority.png)
+
+----
+
+### EXTI
+
+**简介**
+
+- Extern Interrupt 外部中断
+- EXTI可以监测GPIO口的电平信号，当其指定的GPIO口产生电平变化时，EXTI将立即向NVIC发出中断申请，经过NVIC裁决后即可中断CPU主程序，使CPU执行EXTI对应的中断程序
+- 支持的触发方式：上升沿/下降沿/双边沿/软件触发
+- 支持的GPIO口：所有GPIO口，但相同的Pin不能同时触发中断
+- 通道数：16个GPIO_Pin，外加PVD输出、RTC闹钟、USB唤醒、以太网唤醒
+- 触发响应方式：中断响应/事件响应
+
+**基本结构**
+
+![EXTI](./STM32.assets/EXTI.png)
+
+----
+
+### AFIO
+
+- AFIO主要用于引脚复用功能的选择和重定义
+- 在STM32中，AFIO主要完成两个任务：复用功能引脚重映射、中断引脚选择
+
+![AFIO](./STM32.assets/AFIO.png)
+
+
+
+### 对射式红外传感器计次
+
+**代码**
+
+*CountSensor.c*
+
+```c
+#include "stm32f10x.h"
+
+uint16_t CountSensor_Count;
+
+void CountSensor_Init(void){
+	
+	//使能外设时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);	//复用IO
+	
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_14;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+    
+	//配置EXTI
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource14);
+    
+	EXTI_InitTypeDef EXTI_InitStructure;
+	EXTI_InitStructure.EXTI_Line = EXTI_Line14;				//14号口
+	EXTI_InitStructure.EXTI_LineCmd = ENABLE;				//开启
+	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;		 //中断模式
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;	 //下降沿触发，遮挡的时候触发
+//	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;	//上升沿触发，遮挡后离开触发
+//	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling; //上升下降沿都触发，遮挡离开都触发
+	
+	//初始化EXTI
+	EXTI_Init( &EXTI_InitStructure );
+	
+	//NVIC中断优先级分组
+	NVIC_PriorityGroupConfig( NVIC_PriorityGroup_2 );
+	
+	//配置NVIC
+	NVIC_InitTypeDef NVIC_InitStructure;
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;	//中断通道列表
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//使能通道
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;	//
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	
+	//初始化NVIC
+	NVIC_Init( &NVIC_InitStructure );
+
+}
+
+//用于获取CountSensor_Coun的值
+uint16_t CountSensor_Get(void){
+	return CountSensor_Count;
+}
+
+//中断函数，不需要声明
+void EXTI15_10_IRQHander(void)
+{
+	if(EXTI_GetITStatus(EXTI_Line14) == SET)
+	{
+		CountSensor_Count++;
+		EXTI_ClearITPendingBit(EXTI_Line14);
+	
+	}
+}
+
+```
+
+*main.c*
+
+```c
+#include "stm32f10x.h"                  				// Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "CountSensor.h"
+
+/*项目思路：传感器被触发->中断函数被调用->计数变量自增->OLED展示数字增减*/
+
+int main(void){
+	
+	OLED_Init();	//初始化OLED
+	
+	OLED_ShowString(1,1,"Count:");	
+	
+	while(1)
+	{
+		OLED_ShowNum(1,7,CountSensor_Get(), 5);		//
+	}	
+}
+//最后一行要留多加一个空行
+
+```
+
+----
+
+### 旋转编码器计次
+
+*Encoder.c*
+
+**代码**
+
+```c
+#include "stm32f10x.h"                  // Device header
+
+int16_t Encoder_Count;
+
+void Encoder_Init(void){
+
+//使能外设时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);	//复用IO
+	
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+	
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource0);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource1);
+
+	
+	
+	//配置EXTI
+	EXTI_InitTypeDef EXTI_InitStructure;
+	EXTI_InitStructure.EXTI_Line = EXTI_Line0 | EXTI_Line1;	//0号和1号GPIO
+	EXTI_InitStructure.EXTI_LineCmd = ENABLE;				//开启
+	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;		//中断模式
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;	//下降沿触发，遮挡的时候触发
+//	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;	//上升沿触发，遮挡后离开触发
+//	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling; //上升下降沿都触发，遮挡离开都触发
+
+	
+	//初始化EXTI
+	EXTI_Init( &EXTI_InitStructure );
+	
+	
+	//NVIC中断优先级分组
+	NVIC_PriorityGroupConfig( NVIC_PriorityGroup_2 );
+	
+	//配置NVIC
+	NVIC_InitTypeDef NVIC_InitStructure;
+	
+	//0口
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;	//中断通道列表
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//使能通道
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;	//
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;			//响应优先级
+	
+	//1口
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;			//中断通道列表
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;				//使能通道
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;	//
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;			//响应优先级
+	
+	
+	//初始化NVIC
+	NVIC_Init( &NVIC_InitStructure );
+
+}
+
+
+int16_t Encoder_Get(void){
+	int16_t Temp;
+	Temp = Encoder_Count;
+	Encoder_Count = 0;
+	return Temp;
+}
+
+
+//0口中断函数
+void EXTI0_IRQHandler(void)
+{
+	if(EXTI_GetITStatus(EXTI_Line0) == SET){
+		if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_1) == 0){
+			Encoder_Count --;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line0);
+	}
+}
+
+//1口中断函数
+void EXTI1_IRQHandler(void)
+{
+	if(EXTI_GetITStatus(EXTI_Line1) == SET){
+		if(GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_0) == 0){
+			Encoder_Count++;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line1);
+	}
+}
+
+```
 
 
 
@@ -583,3 +888,24 @@ int main() {
 }
 
 ```
+
+---
+
+**#ifndef**
+
+头件的中的#ifndef，这是一个很关键的东西。比如你有两个C文件，这两个C文件都include了同一个头文件。而编译时，这两个C文件要一同编译成一个可运行文件，于是问题来了，大量的声明冲突。
+
+**代码**
+
+*LightSensor.h*
+
+```c
+#ifndef _LIGHT_SENSOR_H
+#define _LIGHT_SENSOR_H
+
+void LightSensor_Init(void);
+
+#endif
+
+```
+
