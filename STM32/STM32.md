@@ -642,10 +642,9 @@ int main(void)
 ```c
 #include "stm32f10x.h"
 
-uint16_t CountSensor_Count;
+uint16_t CountSensor_Count;		//用于在OLED上显示的变量
 
 void CountSensor_Init(void){
-	
 	//使能外设时钟
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);	//复用IO
@@ -676,14 +675,13 @@ void CountSensor_Init(void){
 	
 	//配置NVIC
 	NVIC_InitTypeDef NVIC_InitStructure;
-	NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;	//中断通道列表
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//使能通道
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;	//
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;		//因为用的是EXTI_Line13，对应的通道应该是14，但是因为5
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;				//使能通道
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;	 //对应响应优先级下的取值范围
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;			//对应抢占优先级下的取值范围
 	
 	//初始化NVIC
 	NVIC_Init( &NVIC_InitStructure );
-
 }
 
 //用于获取CountSensor_Coun的值
@@ -692,13 +690,12 @@ uint16_t CountSensor_Get(void){
 }
 
 //中断函数，不需要声明
-void EXTI15_10_IRQHander(void)
+void EXTI15_10_IRQHandler(void)		//因为中断通道是13所以是 EXTI15_10_IRQHander，参见startup_stm32f10x_md.s的119行
 {
-	if(EXTI_GetITStatus(EXTI_Line14) == SET)
+	if(EXTI_GetITStatus(EXTI_Line14) == SET)	//因为10~15都会调用这个函数，判断调用的是不是13
 	{
 		CountSensor_Count++;
-		EXTI_ClearITPendingBit(EXTI_Line14);
-	
+		EXTI_ClearITPendingBit(EXTI_Line14);	//清除中断标致位
 	}
 }
 
