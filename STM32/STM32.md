@@ -8,8 +8,8 @@
 
 ### 芯片系列
 
-- ![Chip_series0](./STM32.assets/Chip_series0.png)
-- ![Chip_series1](./STM32.assets/Chip_series1.png)
+- <img src="./STM32.assets/Chip_series0.png" alt="Chip_series0" style="zoom:50%;" />
+- <img src="./STM32.assets/Chip_series1.png" alt="Chip_series1" style="zoom: 50%;" />
 
 ----
 
@@ -123,6 +123,8 @@ typedef enum
   GPIO_Mode_AF_PP = 0x18		//复用推挽
 }GPIOMode_TypeDef;
 ```
+
+*对应普通的开漏 / 推挽输出引脚的控制权来自于**输出数据寄存器**，要让定时器控制GPIO引脚则需要用 复用开漏 / 复用推挽输出*
 
 -----
 
@@ -858,12 +860,24 @@ void EXTI1_IRQHandler(void)
 
 > 对预分频后的计数时钟进行计数，计数时钟每来一个上升沿/下降沿计数器的值+1 / -1，最大可以计数到+65535 / -65535。
 > 当计数器自增运行到**目标值**时，产生中断信号，并清零计数器，开始下一次计数
+>
+> ```c
+> /*
+> 	计数器溢出频率 ~= 计时时间
+> 	CK_CNT_OV = CK_CNT / (ARR + 1)
+> 			  = CK_PSC / (PSC + 1) / (ARR + 1)
+> 			  = 72MHz  / [(7200-1)+1] / [(10000 - 1)+1]
+> 			  = 72000KHz / 7200 / 10000
+> 			  = 10KHz / 10000
+> 			  = 10000Hz / 10000
+> 			  = 1 (s)
+> */
+> ```
+>
 
 **自动重装寄存器**
 
 > 计数器的目标值
-
-
 
 ### 定时器类型
 
@@ -928,12 +942,23 @@ void Timer_Init(void){
 	
 	//配置时基单元
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
-	TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;	 	//时钟分频
+	TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;	 	//时钟分频，与时基单元关系不大，主要用于过滤信号的抖动干扰
 	TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up;	//计数器模式，向上计数
-	TIM_TimeBaseInitStruct.TIM_Period = 10000 - 1;					//时钟周期
+	TIM_TimeBaseInitStruct.TIM_Period = 10000 - 1;					//时钟周期，自动重装器的值(ARR)
 	TIM_TimeBaseInitStruct.TIM_Prescaler = 7200 - 1;				//预分频器
-	TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;			 	//重复计数器
+	TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;			 	//重复计数器，高级定时器才有，此处赋值0
 	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStruct);				//初始化时基单元
+	
+	/*
+	计数器溢出频率
+	CK_CNT_OV = CK_CNT / (ARR + 1)
+			  = CK_PSC / (PSC + 1) / (ARR + 1)
+			  = 72MHz  / [(7200-1)+1] / [(10000 - 1)+1]
+			  = 72000KHz / 7200 / 10000
+			  = 10KHz / 10000
+			  = 10000Hz / 10000
+			  = 1 (s)
+	*/
 	
 	//清除标志位
 	TIM_ClearFlag(TIM2, TIM_FLAG_Update);			//手动更新标志位，防止刚初始化就进入中断的情况
@@ -953,13 +978,12 @@ void Timer_Init(void){
 	
 	//启动定时器
 	TIM_Cmd(TIM2, ENABLE);
-	
 }
 
 //中断函数
 void TIM2_IRQHandler(void)	//定时器2的中断函数
 {
-	if(TIM_GetITStatus(TIM2, TIM_IT_Update) == SET)
+	if(TIM_GetITStatus(TIM2, TIM_IT_Update) == SET)	//因为是自动重装值所以是更新中断
 	{
 		Num++;
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);	//清除中断
@@ -981,7 +1005,6 @@ uint16_t Num;
 
 int main(void){
 	
-	
 	OLED_Init();
 	Timer_Init();
 	
@@ -989,7 +1012,7 @@ int main(void){
 	
 	while(1){
 		OLED_ShowNum(1, 5, Num, 5);
-		OLED_ShowNum(2, 5, TIM_GetCounter(TIM2), 5);
+		OLED_ShowNum(2, 5, TIM_GetCounter(TIM2), 5);	//TIM_GetCounter获取计数器的值：0 ~（10000-1）
 	}	
 }
 //最后一行要留多加一个空行
@@ -1012,11 +1035,12 @@ void Timer_Init(void){
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);	//使能时钟2外设（通用时钟）
 	
 //	TIM_InternalClockConfig(TIM2);	//选择内部时钟，定时器使能后默认使用的是内部时钟，不写也是调用内部时钟
-	TIM_ETRClockMode2Config(TIM2, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 0x00);//外部时钟
+	TIM_ETRClockMode2Config(TIM2, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 0x00);//外部时钟，模式2，具体参考教程 ⬇
 	
+	//配置GPIO
 	GPIO_InitTypeDef GPIO_InitStructure;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;			//因为GPIO_Pin_0是TIM2寄存器的复用引脚
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 	
@@ -1024,10 +1048,21 @@ void Timer_Init(void){
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
 	TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;	 	//时钟分频
 	TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up;	//计数器模式，向上计数
-	TIM_TimeBaseInitStruct.TIM_Period = 10 - 1;					//时钟周期
-	TIM_TimeBaseInitStruct.TIM_Prescaler = 1 - 1;				//预分频器
+	TIM_TimeBaseInitStruct.TIM_Period = 10 - 1;						//时钟周期，自动重装值取10，0~9
+	TIM_TimeBaseInitStruct.TIM_Prescaler = 1 - 1;					//预分频器，取0 不需要分频
 	TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;			 	//重复计数器
 	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStruct);				//初始化时基单元
+	
+	/*
+	计数器溢出频率
+	CK_CNT_OV = CK_CNT / (ARR + 1)
+			  = CK_PSC / (PSC + 1) / (ARR + 1)
+			  = 72MHz  / [(1-1)+1] / [(10 - 1)+1]
+			  = 72000KHz / 1 / 10
+			  = 7200KHz
+			  = 7200000HZ
+			  = 7200000 (s)
+	*/
 	
 	//清除标志位
 	TIM_ClearFlag(TIM2, TIM_FLAG_Update);			//手动更新标志位，防止刚初始化就进入中断的情况
@@ -1036,7 +1071,7 @@ void Timer_Init(void){
 	
 	
 	//配置NVIC
-	NVIC_PriorityGroupConfig( NVIC_PriorityGroup_2 );	//NVIC分组
+	NVIC_PriorityGroupConfig( NVIC_PriorityGroup_2 );			//NVIC分组
 	
 	NVIC_InitTypeDef NVIC_InitStructure;
 	NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;				//中断通道，定时器2的NVIC通道		
@@ -1047,14 +1082,13 @@ void Timer_Init(void){
 	
 	//启动定时器
 	TIM_Cmd(TIM2, ENABLE);
-	
 }
 
+//获取计数器的值
 uint16_t Timer_GetCounter(void)
 {
 	return TIM_GetCounter(TIM2);
 }
-
 
 //中断函数
 void TIM2_IRQHandler(void)	//定时器2的中断函数
@@ -1080,8 +1114,6 @@ void TIM2_IRQHandler(void)	//定时器2的中断函数
 uint16_t Num;
 
 int main(void){
-	
-	
 	OLED_Init();
 	Timer_Init();
 	
@@ -1089,44 +1121,288 @@ int main(void){
 	OLED_ShowString(1, 1, "CNT:");
 	while(1){
 		OLED_ShowNum(1, 5, Num, 5);
-		OLED_ShowNum(2, 5, Timer_GetCounter(), 5);
+		OLED_ShowNum(2, 5, Timer_GetCounter(), 5);	//TIM_GetCounter获取计数器的值：0 ~（10000-1）
 	}	
 }
 //最后一行要留多加一个空行
 
 ```
 
+[原理参考地址](https://www.bilibili.com/video/BV1th411z7sn?p=14&t=1972.2)
 
+### TIM输出比较
 
+> - 输出比较（Output Compare）可以通过比较**CNT**（时基单元中的计数器）与**CCR**（捕获/比较寄存器）寄存器值的关系，来对输出电平进行置1、置0或翻转的操作，**用于输出一定频率和占空比的PWM波形**
+> - 每个高级定时器和通用定时器都拥有4个输出比较通道
 
+### PWM
 
+> - PWM（Pulse Width Modulation）脉冲宽度调制
+>
+> - 在具有惯性的系统中，可以通过对一系列脉冲的宽度进行调制，来等效地获得所需要的模拟参量，常应用于电机控速等领域
+>
+> - PWM参数：   
+>   频率 = 1 / TS
+>   占空比 = TON / TS  *高电平时间先当与整个周期时间的比例*
+>   分辨率 = 占空比变化步距，[表示调整频率和占空比时的精细程度](https://blog.csdn.net/gdaswater/article/details/6218148)
+>   <img src="./STM32.assets/PWM1.png" alt="PWM1" style="zoom:50%;" />
+>
+> - *PWM相对于飞快的给一个高电平然后又飞快的给一个低电平从而达到：LED灯亮度调节、小车电机变速等惯性系统*
+>
+> - 基本结构
+>   ![PWM_Basic_Structure.png](./STM32.assets/PWM_Basic_Structure.png)
+>   *REF是一个频率可调、占空比可调的PWM波形*
+>
+> - 参数计算
+>
+>   > - PWM频率：Freq = CK_PSC / (PSC + 1) / (ARR + 1)  *= 计数器溢出频率*
+>   > - PWM占空比：Duty = CCR / (ARR + 1)
+>   > - PWM分辨率：Reso = 1/(ARR + 1)  
 
+### 输出比较通道
 
+> - 比较CNT与CRR的值选择输出模式
+> - <img src="./STM32.assets/Output_comparison_channel.png" alt="Output_comparison_channel" style="zoom:65%;" />
+> - 输出比较模式（位于上图输出模式控制器中）
+>   ![Output_Compare_mode](D:\Note\STM32\STM32.assets\Output_Compare_mode.png)
 
+### 输出PWM波步骤
 
+> 1. RCC开启时钟，TIM和GPIO
+> 2. 配置时基单元
+> 3. 配置输出比较单元（输出比较模式、极性选择、输出使能、CCR的值）
+> 4. 配置GPIO
 
+### PWM实现LED呼吸灯
 
+*PWM.c*
 
+```c
+#include "stm32f10x.h"                  // Device header
 
+void PWM_Init(void){
+	//RCC开启时钟
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);	//使能时钟2外设（通用时钟）
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);	//使能GPIOA
+	
+	/*
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO,ENABLE);		//使用AFIO引脚重映射
+	GPIO_PinRemapConfig(GPIO_PartialRemap1_TIM2, ENABLE);	//重映射定时器2
+	GPIO_PinRemapConfig(GPIO_Remap_SWJ_JTAGDisable, ENABLE);//把PA15、PB3、PB4当GPIO口使用
+	*/
+	
+	TIM_InternalClockConfig(TIM2);	//选择内部时钟，定时器使能后默认使用的是内部时钟，不写也是调用内部时钟
+	
+	//配置时基单元
+	TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
+	TIM_TimeBaseInitStruct.TIM_ClockDivision = TIM_CKD_DIV1;	 	//时钟分频，与时基单元关系不大，主要用于过滤信号的抖动干扰
+	TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up;	//计数器模式，向上计数
+	TIM_TimeBaseInitStruct.TIM_Period = 100 - 1;					//自动重装器的值（时钟周期），ARR
+	TIM_TimeBaseInitStruct.TIM_Prescaler = 720 - 1;				//预分频器，PSC
+	TIM_TimeBaseInitStruct.TIM_RepetitionCounter = 0;			 	//重复计数器，高级定时器才有，此处赋值0
+	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStruct);				//初始化时基单元
+	
+	//配置输出比较单元
+	TIM_OCInitTypeDef TIM_OCInitStructure;
+	TIM_OCStructInit(&TIM_OCInitStructure);							//用初始化函数给结构体先赋个初始值，防止没有赋值的成员导致程序冲突
+	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;				//输出比较的模式，PWM1模式
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;		//极性选择，高极性
+	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;	//输出使能
+	TIM_OCInitStructure.TIM_Pulse = 100;							//CRR的值
+	TIM_OC1Init(TIM2,&TIM_OCInitStructure);
+	
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;			//复用推挽输出模式，对应普通的开漏/推挽输出引脚的控制权来自于 输出数据寄存器，要让定时器控制GPIO引脚则需要用 复用开漏/推挽输出
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;			
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;		//输出速度为50MHz
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	GPIO_SetBits(GPIOA, GPIO_Pin_0);//初始化为电平状态（灭）
+	
+	/*
+	PWM频率 = CK_PSC / (PSC + 1) / (ARR + 1) = 72MHz / (PSC +1 ) / (ARR + 1) = 1000Hz
+	PWM占空比 = CCR / (ARR + 1) = 50%
+	PWM分辨率 = 1/(ARR + 1) = 1%
+	得 PSC = 719	ARR = 99
+	*/
+	//启动定时器
+	TIM_Cmd(TIM2, ENABLE);
+}
 
+//更改通道CCR值
+void PWM_SetCompare1(uint16_t Compare)
+{
+	TIM_SetCompare1(TIM2, Compare);
+}
 
+```
 
+*main.c*
 
+```c
+#include "stm32f10x.h"                  				// Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "PWM.h"
 
+uint8_t i;
 
+int main(void){
+	
+	OLED_Init();
+	PWM_Init();
+	while(1)
+	{
+		//动态更改CCR的值
+		for(i = 0; i<=100; i++)
+		{
+			PWM_SetCompare1(i);			//亮
+			Delay_ms(10);
+		}
+		for(i = 0; i<=100; i++)
+		{
+			PWM_SetCompare1(100 - i);	//灭
+			Delay_ms(10);
+		}
+	}	
+}
+//最后一行要留多加一个空行
 
+```
 
+### PWM控制舵机
 
+*Servo.c*
 
+```c
+#include "stm32f10x.h"                  // Device header
+#include "PWM.h"
 
+void Servo_Init(void){
+	PWM_Init();
+}
 
+void Servo_SetAngle(float Angle)
+{
+	PWM_SetCompare2(Angle / 180 * 2000 + 500);
+}
 
+```
 
+*main.c*
 
+```c
+#include "stm32f10x.h"                  				// Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "Servo.h"
+#include "Key.h"
 
+uint8_t KeyNum;
+float Angle;
 
+int main(void){
+	
+	OLED_Init();
+	Servo_Init();
+	Servo_SetAngle(90);
+	OLED_ShowString(1, 1, "Angle: ");
+	while(1)
+	{
+		KeyNum = Key_Get_Num();
+		if(KeyNum == 1)
+		{
+			Angle += 30;
+			if (Angle > 180)
+			{
+				Angle = 0;
+			}
+		}
+		Servo_SetAngle(Angle);
+		OLED_ShowNum(1, 7, Angle, 3);
+	}	
+}
+//最后一行要留多加一个空行
 
+```
 
+### PWM控制直流电机
+
+*Motor.c*
+
+```c
+#include "stm32f10x.h"                  // Device header
+#include "PWM.h"
+
+void Moto_Init(void){
+	//使能外设时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;		//推挽输出模式
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4 | GPIO_Pin_5;	//4号和5号引脚
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;		//输出速度为50MHz
+	GPIO_Init(GPIOA, &GPIO_InitStructure);				   //初始化GPIO
+	PWM_Init();
+
+}
+
+//设置电机速度
+void Motor_SetSpeed(int8_t Speed){
+	if(Speed >= 0){
+		GPIO_SetBits(GPIOA, GPIO_Pin_4);
+		GPIO_ResetBits(GPIOA, GPIO_Pin_5);
+		PWM_SetCompare3(Speed);
+	}
+	else{
+		GPIO_ResetBits(GPIOA, GPIO_Pin_4);
+		GPIO_SetBits(GPIOA, GPIO_Pin_5);
+		PWM_SetCompare3(-Speed);
+	}
+}
+
+```
+
+*main.c*
+
+```c
+#include "stm32f10x.h"                  				// Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "Motor.h"
+#include "Key.h"
+
+uint8_t KeyNum;
+int8_t Speed;
+
+int main(void){
+	
+	OLED_Init();
+	Moto_Init();
+	Key_Init();
+	OLED_ShowString(1, 1, "Speed: ");
+	
+	Motor_SetSpeed(50);
+	
+	while(1)
+	{
+		KeyNum = Key_Get_Num();
+		if(KeyNum == 1){
+			Speed += 20;
+			if(Speed > 100){
+				Speed = -100;
+			}
+		}
+		Motor_SetSpeed(Speed);
+		OLED_ShowSignedNum(1, 7, Speed, 3);
+	}	
+}
+//最后一行要留多加一个空行
+
+```
 
 
 
