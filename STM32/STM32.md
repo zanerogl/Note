@@ -706,7 +706,7 @@ void EXTI15_10_IRQHandler(void)		//因为中断通道是13所以是 EXTI15_10_IR
 *main.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -995,7 +995,7 @@ void TIM2_IRQHandler(void)	//定时器2的中断函数
 *mian.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -1105,7 +1105,7 @@ void TIM2_IRQHandler(void)	//定时器2的中断函数
 *mian.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -1240,7 +1240,7 @@ void PWM_SetCompare1(uint16_t Compare)
 *main.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -1293,7 +1293,7 @@ void Servo_SetAngle(float Angle)
 *main.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -1368,7 +1368,7 @@ void Motor_SetSpeed(int8_t Speed){
 *main.c*
 
 ```c
-#include "stm32f10x.h"                  				// Device header
+#include "stm32f10x.h"                  // Device header
 #include "Delay.h"
 #include <math.h>
 #include "OLED.h"
@@ -1398,6 +1398,206 @@ int main(void){
 		}
 		Motor_SetSpeed(Speed);
 		OLED_ShowSignedNum(1, 7, Speed, 3);
+	}	
+}
+//最后一行要留多加一个空行
+
+```
+
+
+
+## ADC模数转换器
+
+**简介**
+
+> - Analog-Digital Converter 模拟-数字转换器
+> - ADC可以将引脚上连续变化的模拟电压转换为内存中存储的数字变量，建立模拟电路到数字电路的桥梁
+> - 12位逐次逼近型ADC，1us转换时间
+> - 输入电压范围：0~3.3V，转换结果范围：0~4095
+> - 18个输入通道，可测量16个外部和2个内部信号源
+> - 规则组和注入组两个转换单元
+> - 模拟看门狗自动监测输入电压范围
+> - 
+> - STM32F103C8T6 ADC资源：ADC1、ADC2，10个外部输入通道
+>
+> *ADC：模拟信号  一> 数字信号*
+> *DAC：数字信号 一> 模拟信号*
+
+
+
+### ADC单通道
+
+*AD.c*
+
+```c
+#include "stm32f10x.h"                  // Device header
+
+void AD_Init(void){
+	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);	//开启ADC1时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	
+	RCC_ADCCLKConfig(RCC_PCLK2_Div6);						//选择6分频
+	
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;			//模拟输入模式，相当于ADC的专属模式
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;				//0号引脚
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;		//输出速度为50MHz
+	GPIO_Init(GPIOA, &GPIO_InitStructure);					//初始化GPIO
+	
+	//配置输入通道
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_55Cycles5);		
+	
+	//配置ADC
+	ADC_InitTypeDef ADC_InitStructure;
+	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;					//连续扫描模式，不开启则表示单次
+	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;				//数据对其，右对齐
+	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;	//外部触发转换选择，不外部触发（此项目用软件触发）
+	ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;					//工作模式，独立模式
+	ADC_InitStructure.ADC_NbrOfChannel = 1;								//通道数目，
+	ADC_InitStructure.ADC_ScanConvMode = DISABLE;						//扫描转换模式
+	ADC_Init(ADC1, &ADC_InitStructure);
+	
+	//开启ADC1
+	ADC_Cmd(ADC1,ENABLE);
+	
+	//对ADC进行校准
+	ADC_ResetCalibration(ADC1);			//复位校准
+	while (ADC_GetResetCalibrationStatus(ADC1) == SET);//等待复位校准，函数返回复位校准的状态	
+	ADC_StartCalibration(ADC1);			//开始校准
+	while (ADC_GetCalibrationStatus(ADC1) == SET);		//获取校准状态
+	
+}
+
+uint16_t AD_GetValue(void){
+	ADC_SoftwareStartConvCmd(ADC1,ENABLE);
+	while(ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET);
+	return ADC_GetConversionValue(ADC1);
+}
+
+```
+
+*main.c*
+
+```c
+#include "stm32f10x.h"                  // Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "AD.h"
+
+uint16_t ADValue;
+float Volatge;
+
+int main(void){
+	
+	OLED_Init();
+	AD_Init();
+	
+	OLED_ShowString(1, 1, "ADValue: ");
+	OLED_ShowString(2, 1, "Volatge:0.00V");
+	
+	while(1){
+		ADValue = AD_GetValue();
+		Volatge = (float)ADValue / 4095* 3.3;
+		
+		OLED_ShowNum(1, 9, ADValue, 4);
+		OLED_ShowNum(2, 9, Volatge, 1);
+		OLED_ShowNum(2, 11, (uint16_t)(Volatge * 100) % 100, 2);
+		
+		Delay_ms(100);
+	}	
+}
+//最后一行要留多加一个空行
+
+```
+
+### ADC多通道
+
+*AD.c*
+
+```c
+#include "stm32f10x.h"                  // Device header
+
+void AD_Init(void){
+	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);	//开启ADC1时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	
+	RCC_ADCCLKConfig(RCC_PCLK2_Div6);		//选择6分频
+	
+	//配置GPIO
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;			//模拟输入模式，相当于ADC的专属模式
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3;				//0号引脚
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;		//输出速度为50MHz
+	GPIO_Init(GPIOA, &GPIO_InitStructure);					//初始化GPIO
+	
+	//配置ADC
+	ADC_InitTypeDef ADC_InitStructure;
+	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;					//连续扫描模式，不开启则表示单次
+	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;				//数据对其，右对齐
+	ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConv_None;	//外部触发转换选择，不外部触发（此项目用软件触发）
+	ADC_InitStructure.ADC_Mode = ADC_Mode_Independent;					//工作模式，独立模式
+	ADC_InitStructure.ADC_NbrOfChannel = 1;								//通道数目，
+	ADC_InitStructure.ADC_ScanConvMode = DISABLE;						//扫描转换模式
+	ADC_Init(ADC1, &ADC_InitStructure);
+	
+	//开启ADC1
+	ADC_Cmd(ADC1,ENABLE);
+	
+	//对ADC进行校准
+	ADC_ResetCalibration(ADC1);			//复位校准
+	while (ADC_GetResetCalibrationStatus(ADC1) == SET);//等待复位校准，函数返回复位校准的状态	
+	ADC_StartCalibration(ADC1);			//开始校准
+	while (ADC_GetCalibrationStatus(ADC1) == SET);		//获取校准状态
+	
+}
+
+uint16_t AD_GetValue(uint8_t ADC_Channel){
+	//配置输入通道
+	ADC_RegularChannelConfig(ADC1, ADC_Channel, 1, ADC_SampleTime_55Cycles5);		
+	ADC_SoftwareStartConvCmd(ADC1,ENABLE);
+	while(ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET);
+	return ADC_GetConversionValue(ADC1);
+}
+
+```
+
+*mian.c*
+
+```c
+#include "stm32f10x.h"                  				// Device header
+#include "Delay.h"
+#include <math.h>
+#include "OLED.h"
+#include "AD.h"
+
+uint16_t AD0, AD1, AD2, AD3;
+
+int main(void){
+	
+	OLED_Init();
+	AD_Init();
+	
+	OLED_ShowString(1, 1, "AD0: ");
+	OLED_ShowString(2, 1, "AD1: ");
+	OLED_ShowString(3, 1, "AD2: ");
+	OLED_ShowString(4, 1, "AD3: ");
+	
+	while(1){
+		AD0 = AD_GetValue(ADC_Channel_0);
+		AD1 = AD_GetValue(ADC_Channel_1);
+		AD2 = AD_GetValue(ADC_Channel_2);
+		AD3 = AD_GetValue(ADC_Channel_3);
+		
+		OLED_ShowNum(1, 5, AD0, 4);
+		OLED_ShowNum(2, 5, AD1, 4);
+		OLED_ShowNum(3, 5, AD2, 4);
+		OLED_ShowNum(4, 5, AD3, 4);
+		
+		Delay_ms(100);
 	}	
 }
 //最后一行要留多加一个空行
