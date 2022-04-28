@@ -1,0 +1,68 @@
+## 如何把指针函数的首地址赋给函数指针？
+
+#### 什么是指针函数？
+
+> *返回值为某一类型指针的函数*
+>
+> ```c
+> int *(Func)(double a, char *b){
+>     int *p = NULL;
+>     return p;
+> }
+> ```
+
+#### 什么是函数指针？
+
+> *指向函数的指针变量*
+>
+> ```c
+> int (*p)(double, char);
+> ```
+
+#### 如何赋值？
+
+> 首先，考虑函数的首地址是如何赋值给函数指针的？
+>
+> ```c
+> #include <stdio.h>
+> int Func_0(double a, char *b){
+>     return 0;
+> }
+> int main() {
+> 	int (*p)(double a, char *b);
+>     p = Func_0;   //直接把函数名（函数首地址）赋给p
+>     return 0;
+> }
+> ```
+>
+> 所以指针函数也是这样吗？
+>
+> ```c
+> #include <stdio.h>
+> int *Func_1(double a, char *b){
+>     return 0;
+> }
+> int main() {
+> 	int (*p)(double a, char *b);
+>     p = Func_1;
+>     return 0;
+> }
+> ```
+>
+> 显然，这样写在某些编译器下会报错。
+> 原因：函数指针的类型与指针函数的首地址类型冲突
+>
+> 正确写法：
+>
+> ```c
+> #include <stdio.h>
+> int *Func_1(double a, char *b){
+>     return 0;
+> }
+> int main() {
+> 	int (*p)(double a, char *b);
+>     //通过类型强转 () 将指向Func_1的首地址的指针转为和p同类型
+>     p = (int (*)(double, char))Func_1;
+>     return 0;
+> }
+> ```
